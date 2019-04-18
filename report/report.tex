@@ -1,0 +1,63 @@
+\documentclass[utf8, hyperref]{article}
+\usepackage{ctex}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{lipsum}
+
+\title{\fontsize{18}\baselineskip Cache替换实验报告}
+\author{王琛 \quad 计65 \quad 2016011360}
+\date{}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black
+} %set link in table of contents to black (default red)
+
+\definecolor{vgreen}{RGB}{104,180,104}
+\definecolor{vblue}{RGB}{49,49,255}
+\definecolor{vorange}{RGB}{255,143,102}
+\lstset
+{
+	basicstyle={\footnotesize\ttfamily},        % set code style
+	keywordstyle=\color{vblue},
+	identifierstyle=\color{black},
+	commentstyle=\color{vgreen},
+	% numbers=left,                      % set line numbers
+	numberstyle={\tiny \color{black}}, % set fonts of line numbers
+	frame=lines,                      % set type of open 
+	numbersep=10pt,
+	breaklines=true,                   % automatic line break
+    tabsize=4,
+    aboveskip=10pt,
+    belowskip=2pt
+}
+% \setlength\parindent{0pt} %default no indent
+
+\begin{document}
+\maketitle
+ 
+\section{不同Cache替换策略分析}
+\subsection{Random}
+
+\section{Second section}
+\lipsum[5]
+\begin{lstlisting}[language=matlab]
+    sum=0;
+    i=1;
+    while(1/i/sum>0.5*6*10^(-8))
+        sum=sum+1/i;
+        i=i+1; 
+    end
+    disp(i);
+\end{lstlisting}
+
+\lipsum[4]
+% \begin{figure}[H]
+% 	\centering
+% 	\includegraphics[scale=0.3]{photos/fig.png}
+% \end{figure}
+
+\end{document}

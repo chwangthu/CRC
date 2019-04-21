@@ -21,6 +21,8 @@
 #include "utils.h"
 #include "crc_cache_defs.h"
 
+#define NUM_PROTECTED 12
+#define MAX_COUNTER 8
 // Replacement Policies Supported
 typedef enum 
 {
@@ -35,6 +37,7 @@ typedef struct
     UINT32  LRUstackposition;
 
     // CONTESTANTS: Add extra state per cache line here
+    UINT32 num_access; // num of accesses [0, MAX_COUNTER]
 
 } LINE_REPLACEMENT_STATE;
 
@@ -77,6 +80,9 @@ class CACHE_REPLACEMENT_STATE
 
     INT32  Get_LRU_Victim( UINT32 setIndex );
     void   UpdateLRU( UINT32 setIndex, INT32 updateWayID );
+
+    INT32  Get_PLRU_Victim( UINT32 setIndex );
+    void   UpdatePLRU( UINT32 setIndex, INT32 updateWayID );
 };
 
 

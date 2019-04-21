@@ -182,37 +182,80 @@ INT32 CACHE_REPLACEMENT_STATE::Get_LRU_Victim( UINT32 setIndex )
     return lruWay;
 }
 
-INT32 CACHE_REPLACEMENT_STATE::Get_PLRU_Victim( UINT32 setIndex )
+INT32 CACHE_REPLACEMENT_STATE::Get_PLRU_Victim(UINT32 setIndex)
 {
-    LINE_REPLACEMENT_STATE *replSet = repl[ setIndex ];
-    INT32 lruWay = 0;
-    // First find protected blocks
-    int p[assoc];
-    for(UINT32 i=0; i<assoc; i++) {
-        p[i] = 0;
+  // Get pointer to replacement state of current set
+  LINE_REPLACEMENT_STATE *replSet = repl[setIndex];
+
+  INT32 lruWay = 0;
+
+  // Container of all the valid ways
+  vector<UINT32> validWays;
+
+  // Populate array for all way indices
+  for (UINT32 way = 0; way < assoc; ++way)
+    validWays.push_back(way);
+
+  // Remove the N most accessed indices
+  for (int i = 0; i < NUM_PROTECTED; ++i) {
+    COUNTER maxVal = 0;
+    int maxValIdx = -1;
+    // Scan for first entry with greatest number of accesses
+    for (size_t j = 0; j < validWays.size(); ++j)
+      if (maxValIdx == -1 || replSet[validWays[j]].num_access > maxVal) {
+        // Save this entry's position and number of accesses
+        maxValIdx = j;
+        maxVal = replSet[validWays[j]].num_access;
+      }
+    // If a valid entry was found remove it from the list of valid ways
+    if (maxValIdx != -1)
+      validWays.erase(validWays.begin()+maxValIdx);
+  }
+
+  // Find LRU in remaining valid indices
+  UINT32 currStackPos = 0;
+  for (size_t i = 0; i < validWays.size(); ++i) {
+    if (replSet[validWays[i]].LRUstackposition > currStackPos) {
+      currStackPos = replSet[validWays[i]].LRUstackposition;
+      lruWay = validWays[i];
     }
-    for(UINT32 i=0; i<NUM_PROTECTED; i++) {
-        int max_index = -1;
-        UINT32 max_access = 0;
-        for(UINT32 way=0; way<assoc; way++) {
-            if(p[way]==0 && replSet[way].num_access >= max_access) {
-                max_index = way;
-                max_access = replSet[way].num_access;
-            } 
-        }
-        p[max_index] = 1;
-    }
-    // evict the victim
-    UINT32 tep = 0;
-    for(UINT32 way=0; way<assoc; way++) {
-        if(p[way]==0 && replSet[way].LRUstackposition >= tep) {
-            tep = replSet[way].LRUstackposition;
-            lruWay = way;
-        } 
-    }
-    replSet[lruWay].num_access = 0;
-    return lruWay;
+  }
+
+  // Reset the number of accesses in the replaced line
+  replSet[lruWay].num_access = 0;
+  return lruWay;
 }
+// INT32 CACHE_REPLACEMENT_STATE::Get_PLRU_Victim( UINT32 setIndex )
+// {
+//     LINE_REPLACEMENT_STATE *replSet = repl[ setIndex ];
+//     INT32 lruWay = 0;
+//     // First find protected blocks
+//     UINT32 p[assoc];
+//     for(UINT32 i=0; i<assoc; i++) {
+//         p[i] = 0;
+//     }
+//     for(UINT32 i=0; i<NUM_PROTECTED; i++) {
+//         UINT32 max_index = -1;
+//         UINT32 max_access = -1;
+//         for(UINT32 way=0; way<assoc; way++) {
+//             if(p[way]==0 && replSet[way].num_access > max_access) {
+//                 max_index = way;
+//                 max_access = replSet[way].num_access;
+//             } 
+//         }
+//         p[max_index] = 1;
+//     }
+//     // evict the victim
+//     UINT32 tep = -1;
+//     for(UINT32 way=0; way<assoc; way++) {
+//         if(p[way]==0 && replSet[way].LRUstackposition > tep) {
+//             tep = replSet[way].LRUstackposition;
+//             lruWay = way;
+//         } 
+//     }
+//     replSet[lruWay].num_access = 0;
+//     return lruWay;
+// }
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 // This function finds a random victim in the cache set                       //
@@ -253,13 +296,26 @@ void CACHE_REPLACEMENT_STATE::UpdateLRU( UINT32 setIndex, INT32 updateWayID )
 
 void CACHE_REPLACEMENT_STATE::UpdatePLRU( UINT32 setIndex, INT32 updateWayID )
 {
-    UINT32 num_access = ++repl[ setIndex ][ updateWayID ].num_access;
-    if(num_access >= MAX_COUNTER) {
-        for(UINT32 way=0; way<assoc; way++)
-            repl[setIndex][way].num_access >>= 1;
-    }
-    UpdateLRU( setIndex, updateWayID );
+      LINE_REPLACEMENT_STATE *replSet = repl[setIndex];
+
+  // Increment the number of accesses
+  replSet[updateWayID].num_access++;
+
+  // Test accesses against the threshold
+  if (replSet[updateWayID].num_access == MAX_COUNTER)
+    for (UINT32 way = 0; way < assoc; ++way)
+      replSet[way].num_access = replSet[way].num_access >> 1;
+
+  // Update LRU stack
+  UpdateLRU(setIndex, updateWayID);
 }
+//     UINT32 num_access = ++repl[ setIndex ][ updateWayID ].num_access;
+//     if(num_access >= MAX_COUNTER) {
+//         for(UINT32 way=0; way<assoc; way++)
+//             repl[setIndex][way].num_access >>= 1;
+//     }
+//     UpdateLRU( setIndex, updateWayID );
+// }
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 // The function prints the statistics for the cache                           //

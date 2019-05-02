@@ -21,8 +21,13 @@
 #include "utils.h"
 #include "crc_cache_defs.h"
 
-#define NUM_PROTECTED 12
-#define MAX_COUNTER 8
+#define SCORE_BITS 8
+#define MAX_SCORE ((1 << SCORE_BITS) - 1)
+#define THRESHOLD_SCORE 50
+#define ACCESS_INTERVAL 100000
+#define INCR_STEP 80
+#define INIT_STEP 8 //step for initial score
+#define NUM_VICTIM_SET 4
 // Replacement Policies Supported
 typedef enum 
 {
@@ -37,8 +42,15 @@ typedef struct
     UINT32  LRUstackposition;
 
     // CONTESTANTS: Add extra state per cache line here
-    UINT32 num_access; // num of accesses [0, MAX_COUNTER]
-
+    INT32 score;
+    void increase() {
+        score += INCR_STEP;
+        if(score > MAX_SCORE) score = MAX_SCORE;
+    }
+    void decrease() {
+        if(score <= 1) score = 0;
+        else --score;
+    }
 } LINE_REPLACEMENT_STATE;
 
 
@@ -56,6 +68,11 @@ class CACHE_REPLACEMENT_STATE
     COUNTER mytimer;  // tracks # of references to the cache
 
     // CONTESTANTS:  Add extra state for cache here
+    INT32 initScore;
+    INT32 direction; //1 for increase, -1 for decrease
+    INT32 numAccess;
+    INT32 preMiss;
+    INT32 curMiss;
 
   public:
 
@@ -81,8 +98,8 @@ class CACHE_REPLACEMENT_STATE
     INT32  Get_LRU_Victim( UINT32 setIndex );
     void   UpdateLRU( UINT32 setIndex, INT32 updateWayID );
 
-    INT32  Get_PLRU_Victim( UINT32 setIndex );
-    void   UpdatePLRU( UINT32 setIndex, INT32 updateWayID );
+    INT32 Get_Score_Victim( UINT32 setIndex );
+    void UpdateScore( UINT32 setIndex, INT32 updateWayID, bool cacheHit );
 };
 
 

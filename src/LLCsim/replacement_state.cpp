@@ -1,6 +1,6 @@
 #include "replacement_state.h"
+#include <iomanip>
 #include <vector>
-using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
@@ -66,12 +66,25 @@ void CACHE_REPLACEMENT_STATE::InitReplacementState()
         {
             // initialize stack position (for true LRU)
             repl[ setIndex ][ way ].LRUstackposition = way;
-            repl[ setIndex ][ way ].num_access = 0;
         }
     }
 
     // Contestants:  ADD INITIALIZATION FOR YOUR HARDWARE HERE
+    for(UINT32 setIndex=0; setIndex<numsets; setIndex++) 
+    {
+        repl[ setIndex ]  = new LINE_REPLACEMENT_STATE[ assoc ];
 
+        for(UINT32 way=0; way<assoc; way++) 
+        {
+            // initialize stack position (for true LRU)
+            repl[ setIndex ][ way ].score = 0;
+        }
+    }
+    initScore = MAX_SCORE >> 1;
+    direction = 1;
+    numAccess = 0;
+    preMiss = 0;
+    curMiss = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +117,7 @@ INT32 CACHE_REPLACEMENT_STATE::GetVictimInSet( UINT32 tid, UINT32 setIndex, cons
     else if( replPolicy == CRC_REPL_CONTESTANT )
     {
         // Contestants:  ADD YOUR VICTIM SELECTION FUNCTION HERE
-        return Get_PLRU_Victim( setIndex );
+        return Get_Score_Victim( setIndex );
     }
 
     // We should never get here
@@ -141,10 +154,86 @@ void CACHE_REPLACEMENT_STATE::UpdateReplacementState(
         // Contestants:  ADD YOUR UPDATE REPLACEMENT STATE FUNCTION HERE
         // Feel free to use any of the input parameters to make
         // updates to your replacement policy
-        UpdatePLRU( setIndex, updateWayID );
+        UpdateScore( setIndex, updateWayID, cacheHit );
     }
     
     
+}
+
+void CACHE_REPLACEMENT_STATE::UpdateScore( UINT32 setIndex, INT32 updateWayID, bool cacheHit ) {
+    LINE_REPLACEMENT_STATE *replSet = repl[ setIndex ];
+
+    //update score
+    for(UINT32 way=0; way<assoc && way!=(UINT32)updateWayID; way++) {
+        replSet[way].decrease();
+    }
+    
+    if(cacheHit == false) {
+        replSet[updateWayID].score = initScore;
+        ++curMiss;
+    } else {
+        replSet[updateWayID].increase();
+    }
+
+    //if accesses meet an inteval, update initial score
+    if(numAccess == ACCESS_INTERVAL) {
+        //if current misses is biggest than last interval, direction change
+        if(curMiss > preMiss) direction *= -1;
+        initScore += direction * INIT_STEP;
+        if(initScore > MAX_SCORE) initScore = MAX_SCORE;
+        if(initScore < 0) initScore = 0;
+
+        preMiss = curMiss;
+        curMiss = 0;
+        numAccess = 0;
+    }
+}
+
+INT32 CACHE_REPLACEMENT_STATE::Get_Score_Victim( UINT32 setIndex )
+{
+    LINE_REPLACEMENT_STATE *replSet = repl[ setIndex ];
+
+    INT32   lruWay   = 0;
+    // int p[assoc];
+    // vector<UINT32> victims;
+    // for(UINT32 i=0; i<assoc; i++) {
+    //     p[i] = 0;
+    // }
+    // for(UINT32 i=0; i<NUM_VICTIM_SET; i++) {
+    //     int min_index = -1;
+    //     INT32 min_score = MAX_SCORE + 1;
+    //     for(UINT32 way=0; way<assoc; way++) {
+    //         if(p[way]==0 && replSet[way].score < min_score) {
+    //             min_index = way;
+    //             min_score = replSet[way].score;
+    //         } 
+    //     }
+    //     p[min_index] = 1;
+    //     victims.push_back(min_index);
+    // }
+    // INT32 size = victims.size();
+    // if(size > 0) {
+    //     srand(time(NULL));
+    //     lruWay = victims[rand() % size];
+    // }
+    vector<UINT32> victims;
+    INT32 minScore = MAX_SCORE+1;
+    for(UINT32 way=0; way<assoc; way++) {
+        INT32 score = replSet[way].score;
+        if(score < THRESHOLD_SCORE) {
+            victims.push_back(way);
+        }
+        if(minScore > score) {
+            lruWay = way;
+            minScore = score;
+        }
+    }
+    INT32 size = victims.size();
+    if(size > 0) {
+        srand(time(NULL));
+        lruWay = victims[rand() % size];
+    }
+    return lruWay;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,37 +271,6 @@ INT32 CACHE_REPLACEMENT_STATE::Get_LRU_Victim( UINT32 setIndex )
     return lruWay;
 }
 
-INT32 CACHE_REPLACEMENT_STATE::Get_PLRU_Victim( UINT32 setIndex )
-{
-    LINE_REPLACEMENT_STATE *replSet = repl[ setIndex ];
-    INT32 lruWay = 0;
-    // First find protected blocks
-    int p[assoc];
-    for(UINT32 i=0; i<assoc; i++) {
-        p[i] = 0;
-    }
-    for(UINT32 i=0; i<NUM_PROTECTED; i++) {
-        int max_index = -1;
-        UINT32 max_access = 0;
-        for(UINT32 way=0; way<assoc; way++) {
-            if(p[way]==0 && replSet[way].num_access >= max_access) {
-                max_index = way;
-                max_access = replSet[way].num_access;
-            } 
-        }
-        p[max_index] = 1;
-    }
-    // evict the victim
-    UINT32 tep = 0;
-    for(UINT32 way=0; way<assoc; way++) {
-        if(p[way]==0 && replSet[way].LRUstackposition >= tep) {
-            tep = replSet[way].LRUstackposition;
-            lruWay = way;
-        } 
-    }
-    replSet[lruWay].num_access = 0;
-    return lruWay;
-}
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 // This function finds a random victim in the cache set                       //
@@ -251,15 +309,6 @@ void CACHE_REPLACEMENT_STATE::UpdateLRU( UINT32 setIndex, INT32 updateWayID )
     repl[ setIndex ][ updateWayID ].LRUstackposition = 0;
 }
 
-void CACHE_REPLACEMENT_STATE::UpdatePLRU( UINT32 setIndex, INT32 updateWayID )
-{
-    UINT32 num_access = ++repl[ setIndex ][ updateWayID ].num_access;
-    if(num_access >= MAX_COUNTER) {
-        for(UINT32 way=0; way<assoc; way++)
-            repl[setIndex][way].num_access >>= 1;
-    }
-    UpdateLRU( setIndex, updateWayID );
-}
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 // The function prints the statistics for the cache                           //

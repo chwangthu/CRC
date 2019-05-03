@@ -1,2 +1,2 @@
 # CRC
-Project for Computer Architecture course in DCST, Tsinghua University.
+In this project, we propose Workset Miss Rate based Points algorithm, which combines SCORE and PLRU.

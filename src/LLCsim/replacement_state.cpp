@@ -190,7 +190,7 @@ INT32 CACHE_REPLACEMENT_STATE::Get_Point_Victim( UINT32 setIndex )
 
     INT32   pbpWay   = 0;
     UINT32 victimNum = 3;
-    if(5*numAccess > ACCESS_INTERVAL) {
+    if(5*numAccess > WINDOW_SIZE) {
         float missRate = float(curMiss)/float(numAccess);
         if(missRate > 0.5) {
             victimNum += missRate * 4;
